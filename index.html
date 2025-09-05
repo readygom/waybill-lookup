@@ -210,11 +210,14 @@
     }
 
     $('#btnRefresh').addEventListener('click', loadData);
-    // 초기 자동 로드 (페이지 진입 시 데이터 비어있지 않게)
-    if(document.readyState==='complete' || document.readyState==='interactive'){
-      loadData();
-    }else{
-      document.addEventListener('DOMContentLoaded', loadData);
+    // 초기 자동 로드: GitHub Pages(실서비스)에서만 자동으로 불러옵니다.
+    const isProd = /github\.io$/.test(location.hostname);
+    if (isProd) {
+      if (document.readyState==='complete' || document.readyState==='interactive') {
+        loadData();
+      } else {
+        document.addEventListener('DOMContentLoaded', loadData);
+      }
     }
 
     // 간단 테스트 (개발자 확인용)
@@ -228,4 +231,3 @@
   </script>
 </body>
 </html>
-
