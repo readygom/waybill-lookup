@@ -97,8 +97,12 @@
         return;
       }
       for(const it of items){
-        const no = it.tracking_no||'';
-        const carrier = it.carrier||'';
+        let no = it.tracking_no||'';
+        let carrier = it.carrier||'';
+        // 운송장 번호만 있고 택배사 비어있으면 기본을 롯데택배로 설정
+        if(no && !carrier){
+          carrier = '롯데택배';
+        }
         const link = no ? (CARRIER_LINKS[carrier] ? CARRIER_LINKS[carrier](no) : `https://www.google.com/search?q=${encodeURIComponent((carrier||'운송장')+' '+no)}`) : '';
         const el = document.createElement('div');
         el.className = 'item';
@@ -232,3 +236,4 @@
   </script>
 </body>
 </html>
+
