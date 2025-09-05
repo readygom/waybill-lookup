@@ -13,8 +13,6 @@
       --text:#e5e7eb;
       --brand:#06b6d4;
       --accent:#f59e0b;
-      --ok:#22c55e;
-      --danger:#ef4444;
       --ring: rgba(6, 182, 212, .35);
       --radius: 16px;
     }
@@ -26,8 +24,6 @@
     h1{font-size:24px; margin:0}
     .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:20px; box-shadow:0 10px 35px rgba(0,0,0,.35)}
     .hint{color:var(--muted); font-size:14px}
-    .grid{display:grid; grid-template-columns:1fr; gap:16px}
-    @media(min-width:860px){.grid{grid-template-columns:1fr}}
     .input{width:100%; padding:14px 14px; border-radius:12px; background:#0b1220; color:var(--text); border:1px solid rgba(255,255,255,.12); outline:none}
     .input:focus{border-color:var(--brand); box-shadow:0 0 0 6px var(--ring)}
     .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
@@ -41,7 +37,6 @@
     .carrier{font-weight:700; color:var(--accent)}
     a.link{color:#93c5fd; text-decoration:none}
     a.link:hover{text-decoration:underline}
-    .note{font-size:12px; color:var(--muted)}
     .kbd{font-family:ui-monospace,monospace; background:#0b1220; border:1px solid rgba(255,255,255,.12); padding:2px 6px; border-radius:6px}
     footer{margin:28px 0; text-align:center; color:var(--muted); font-size:12px}
   </style>
@@ -59,7 +54,7 @@
     <section class="card">
       <label for="q" class="hint">검색어</label>
       <div class="row" style="margin-top:6px">
-        <input id="q" class="input" placeholder="예: 홍길동 또는 01012345678 (숫자 일부만 입력해도 됨)" />
+        <input id="q" class="input" placeholder="예: 김수현 / 0107166… (숫자 일부만 입력해도 됨)" />
         <button id="btnSearch" class="btn">조회</button>
         <button id="btnRefresh" class="btn ghost" title="구글 시트에서 새로 불러오기">새로고침</button>
       </div>
@@ -79,8 +74,9 @@
 
     let DB = [];
     const $ = (q)=>document.querySelector(q);
-    const year = new Date().getFullYear(); (document.querySelector('#year')||{}).textContent = year;
+    (document.querySelector('#year')||{}).textContent = new Date().getFullYear();
 
+    // ===== Helpers =====
     const CARRIER_LINKS = {
       'CJ대한통운': (no) => `https://track.cjlogistics.com/ko/tracking?slipno=${encodeURIComponent(no)}`,
       '한진택배': (no) => `https://www.hanjin.co.kr/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&billno=${encodeURIComponent(no)}`,
@@ -88,7 +84,10 @@
       '로젠택배': (no) => `https://www.ilogen.com/web/personal/trace/${encodeURIComponent(no)}`,
       '우체국택배': (no) => `https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=${encodeURIComponent(no)}`,
     };
+    const looksLikeValidUrl = (u)=> typeof u==='string' && u.startsWith('http') && u.length>12;
+    const normalizePhone = (s)=> String(s||'').replace(/\D/g,'');
 
+    // ===== View =====
     function render(items){
       const result = $('#result');
       result.innerHTML = '';
@@ -120,8 +119,7 @@
       }
     }
 
-    function normalizePhone(s){ return String(s||'').replace(/\D/g,''); }
-
+    // ===== Search =====
     function filterRecords(records, q){
       const f = (q||'').trim().toLowerCase();
       if(!f) return [];
@@ -132,17 +130,16 @@
         return byName || byPhone;
       });
     }
-
     function search(){
       const q = $('#q').value;
       const out = filterRecords(DB, q);
       render(out);
       $('#stats').textContent = q.trim()? `${out.length}건이 검색되었습니다.` : '';
     }
-
     $('#btnSearch').addEventListener('click', search);
     $('#q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
 
+    // ===== CSV utils =====
     function parseCSV(text){
       const rows = [];
       let i=0, field='', row=[], inQuotes=false;
@@ -162,30 +159,37 @@
 
     function rowsToDB(rows){
       if(!rows||!rows.length) return [];
-      const header = rows.shift().map(h=>String(h).trim());
-      const idxOf = (name)=> header.findIndex(h=>h.replace(/\s/g,'')===name);
-      const idx = {
-        receiver: idxOf('받는사람'),
-        phone: idxOf('연락처'),
-        address: idxOf('주소'),
-        note: idxOf('비고'),
-        tracking_no: idxOf('운송장번호'),
-        carrier: Math.max(idxOf('택배사'), header.findIndex(h=>/택배|carrier/i.test(h))),
-        date: Math.max(idxOf('출고일자'), header.findIndex(h=>/출고.?일자|date/i.test(h))),
-        shop: Math.max(idxOf('서점명'), header.findIndex(h=>/서점|shop|store/i.test(h)))
-      };
-      return rows.map(r=>(
-        {
-          receiver: r[idx.receiver]||'',
-          phone: r[idx.phone]||'',
-          address: r[idx.address]||'',
-          note: r[idx.note]||'',
-          tracking_no: r[idx.tracking_no]||'',
-          carrier: idx.carrier>=0? r[idx.carrier]||'': '',
-          date: idx.date>=0? r[idx.date]||'': '',
-          shop: idx.shop>=0? r[idx.shop]||'': ''
+      // 헤더 정규화: BOM 제거, 공백/대소문자 무시, 유사명 허용
+      const header = rows.shift().map(h=>String(h).replace(/\uFEFF/g,'').trim());
+      const norm = (s)=> String(s||'').replace(/\s/g,'').toLowerCase();
+      const find = (key, ...alts)=>{
+        const keys = [key, ...alts];
+        for(const k of keys){
+          const i = header.findIndex(h=> norm(h) === norm(k));
+          if(i>-1) return i;
         }
-      )).filter(x=> x.receiver || x.phone || x.tracking_no);
+        return -1;
+      };
+      const idx = {
+        receiver: find('받는사람','수령인','이름'),
+        phone:    find('연락처','전화번호','휴대폰'),
+        address:  find('주소','배송지'),
+        note:     find('비고','메모'),
+        tracking_no: find('운송장번호','운송장','송장','송장번호'),
+        carrier:  find('택배사','배송업체','carrier'),
+        date:     find('출고일자','출고일','date'),
+        shop:     find('서점명','서점','매장','shop','store')
+      };
+      return rows.map(r=>({
+        receiver: r[idx.receiver]||'',
+        phone: r[idx.phone]||'',
+        address: r[idx.address]||'',
+        note: r[idx.note]||'',
+        tracking_no: r[idx.tracking_no]||'',
+        carrier: idx.carrier>=0? r[idx.carrier]||'': '',
+        date: idx.date>=0? r[idx.date]||'': '',
+        shop: idx.shop>=0? r[idx.shop]||'': ''
+      })).filter(x=> x.receiver || x.phone || x.tracking_no);
     }
 
     async function fetchCSV(url){
@@ -197,9 +201,7 @@
 
     async function loadData(){
       try{
-        if(CONFIG.mode==='csv' && !looksLikeValidUrl(CONFIG.csvUrl)){
-          return;
-        }
+        if(CONFIG.mode==='csv' && !looksLikeValidUrl(CONFIG.csvUrl)) return;
         DB = await fetchCSV(CONFIG.csvUrl);
         render([]);
       }catch(err){
@@ -208,15 +210,22 @@
     }
 
     $('#btnRefresh').addEventListener('click', loadData);
+    // 초기 자동 로드 (페이지 진입 시 데이터 비어있지 않게)
+    if(document.readyState==='complete' || document.readyState==='interactive'){
+      loadData();
+    }else{
+      document.addEventListener('DOMContentLoaded', loadData);
+    }
 
-    function runTests(){
+    // 간단 테스트 (개발자 확인용)
+    (function runTests(){
       const out=[]; let pass=0, fail=0; const log=(ok,msg)=>{ ok?pass++:fail++; out.push(`${ok?'✅':'❌'} ${msg}`); };
       (function(){ const csv='받는사람,연락처\n"김,가은",010-1234\n'; const rows=parseCSV(csv); log(rows.length===2 && rows[1][0]==='김,가은','T1 parseCSV quoted comma'); })();
       (function(){ const rows=[["받는사람","연락처","주소","비고","운송장번호","택배사"],["홍길동","010-0000-0000","서울","메모","0099","CJ대한통운"]]; const db=rowsToDB(rows); log(db.length===1 && db[0].tracking_no==='0099' && db[0].carrier==='CJ대한통운','T2 rowsToDB map'); })();
       (function(){ const db=[{receiver:'김가은',phone:'010-1234-5678'},{receiver:'박민수',phone:'010-9999-0000'}]; const a=filterRecords(db,'김'); const b=filterRecords(db,'9999'); log(a.length===1 && a[0].receiver==='김가은','T3-1 name includes'); log(b.length===1 && b[0].receiver==='박민수','T3-2 phone partial'); })();
-      const summary=`\n결과: ${pass} PASS / ${fail} FAIL`; console.log(summary); return {pass,fail};
-    }
-    runTests();
+      console.log(out.join('\n'), `\n결과: ${pass} PASS / ${fail} FAIL`);
+    })();
   </script>
 </body>
 </html>
+
