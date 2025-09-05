@@ -80,7 +80,8 @@
     const CARRIER_LINKS = {
       'CJ대한통운': (no) => `https://track.cjlogistics.com/ko/tracking?slipno=${encodeURIComponent(no)}`,
       '한진택배': (no) => `https://www.hanjin.co.kr/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&billno=${encodeURIComponent(no)}`,
-      '롯데택배': (no) => `https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=${encodeURIComponent(no)}`,
+      // 요청: 롯데택배는 항상 고정 트래킹 페이지로 이동
+      '롯데택배': () => 'https://www.lotteglogis.com/home/reservation/tracking/index',
       '로젠택배': (no) => `https://www.ilogen.com/web/personal/trace/${encodeURIComponent(no)}`,
       '우체국택배': (no) => `https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1=${encodeURIComponent(no)}`,
     };
