@@ -102,13 +102,20 @@
     const normalizePhone = (s)=> String(s||'').replace(/\D/g,'');
 
     // ===== View =====
+    function maskPhone(phone){
+const digits = String(phone||'');
+if(digits.length < 4) return digits;
+return digits.slice(0, -4) + '****';
+}
+
+
     function render(items){
       const result = $('#result');
       result.innerHTML = '';
       if(!items.length){
         result.innerHTML = `<div class="hint">검색 결과가 없습니다.</div>`;
         return;
-      }
+      }const normalizePhone = (s)=> String(s||'').replace(/\D/g,'');
       for(const it of items){
         let no = it.tracking_no||'';
         let carrier = it.carrier||'';
@@ -122,7 +129,7 @@
         el.innerHTML = `
           <div>
             <strong>${it.receiver||'-'}</strong>
-            <div class="tag">연락처: ${it.phone||'-'}</div>
+            <div class="tag">연락처: ${maskPhone(it.phone)||'-'}</div>
             ${it.shop ? `<div class="tag">서점명: ${it.shop}</div>`:''}
             ${it.date ? `<div class="tag">출고일자: ${it.date}</div>`:''}
             <div class="tag">주소: ${it.address||'-'}</div>
